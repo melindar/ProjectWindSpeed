@@ -2,19 +2,20 @@ package windspeed;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
-import java.net.URI;
-import java.net.URISyntaxException;
+//import java.net.URISyntaxException;
 import java.util.Scanner;
+
+import org.apache.hadoop.fs.Path;
 
 public class LineData 
 {
 
-	public static void main(String[] args) 
+	/*public static void main(String[] args) 
 	{
 		try {
 			// Testing multiple data files. Concatenating data to output.txt for testing in Python.
 			PrintWriter print = new PrintWriter(new File("output.txt"));
-			//String filename = "stationdata.prn";
+			//String filename = "latestStation.txt";
 			URI filename = null;
 			try {
 				filename = new URI("stationdata.prn");
@@ -25,7 +26,7 @@ public class LineData
 			LineData data = new LineData();
 
 			// File 1 is 30750 from 1929
-			Scanner scan = new Scanner(new File("030750-99999-1929.op"));
+			Scanner scan = new Scanner(new File("999999-94082-2009.op"));
 			while(scan.hasNextLine()){
 				String line = scan.nextLine();
 				String[] vars1 = data.processLine(line,filename);
@@ -89,7 +90,7 @@ public class LineData
 		}catch (FileNotFoundException e){
 			e.printStackTrace();
 		}
-	}
+	}*/
 	
 	/*
 	 * This function is used for testing. It writes the data to a file in the specified format for post-processing. 
@@ -97,7 +98,7 @@ public class LineData
 	 * 			printwriter is not closed by this function and must be closed by the caller. (String[]) vars contains all the tokens from a single line 
 	 * 			in the data file.
 	 */
-	private static void writeFile(PrintWriter print, String[] vars)
+	public void writeFile(PrintWriter print, String[] vars)
 	{
 		for(int i = 0; i < vars.length; i++){
 			print.print(vars[i] + "\t");
@@ -112,7 +113,7 @@ public class LineData
 	 * Return val: (String[]) an array of strings that contains each required field (one row of the input matrix), or null if either not all fields are present
 	 *  			or the lookup file does not contain the location information.
 	 */
-	public String[] processLine(String line,URI filename)
+	public String[] processLine(String line,Path localPaths)
 	{
 		/* List of file variables:
 		 * 
@@ -170,8 +171,8 @@ public class LineData
 
 			// Handling missing values. Pressures can be estimated, other missing values require throwing out the whole line
 			if(vars[5].equals("9999.9")) return null;	// Missing value do not use
-			if(vars[6].equals("9999.9")) vars[6] = "1013";	// Missing value, set to standard slp
-			if(vars[7].equals("9999.9")) vars[7] = "1013";	// Missing value, set to standard pressure
+			if(vars[6].equals("9999.9")) vars[6] = "1013.0";	// Missing value, set to standard slp
+			if(vars[7].equals("9999.9")) vars[7] = "1013.0";	// Missing value, set to standard pressure
 			if(vars[8].equals("999.9")) return null;	// Missing value do not use
 			if(vars[0].equals("999.9")) return null;	// Missing value do not use (This is the target, definitely can't use!)
 			if(vars[9].equals("9999.9")) return null;	// Missing value do not use
@@ -191,15 +192,15 @@ public class LineData
 			int station;
 
 			// Check if there is a station number or WBAN number to identify the station.
-			if(vars[1] == "99999")
+			if(vars[2] == "99999")
 				// "99999" means the WBAN is unknown, use the station ID. Index 2 in the vars array, index 1 in the files.
-				station = 2;	
+				station = 1;	
 			else
 				// WBAN is known, use it to identify the station. Index 1 in the vars array, index 0 in the files.
-				station = 1;	
+				station = 2;	
 
 			// Find the latitude, longitude and elevation from the station lookup file.
-			String[] location = getLatLonElev(vars[station],station-1,filename);
+			String[] location = getLatLonElev(vars[station],station-1,localPaths);
 			if(location == null)
 				// There was no location found, throw this one out.
 				return null;
@@ -208,6 +209,9 @@ public class LineData
 			vars[13] = location[2];	// lat
 			vars[14] = location[3];	// lon
 			vars[15] = location[4];	// elev
+			
+			// Some elevations do not exist in the data file. We won't use these either.
+			if(vars[15]=="-999") return null;
 		}
 		return vars;
 	}
@@ -218,14 +222,15 @@ public class LineData
 	 * Return val: String[] containing the row from the lookup file where the station was found, or null if it's not in the file or it doesn't have all 5 
 	 * 				pieces of data (station,WBAN,lon,lat,elevation).
 	 */
-	private static String[] getLatLonElev(String stationID, int stationType, URI filename)
+	private static String[] getLatLonElev(String stationID, int stationType, Path localPaths)
 	{
 		try {
 			// stationIDNum is the integer form of the station in the data file (better to compare ints since sometimes values start with 0 and sometimes they don't)
 			int stationIDNum = Integer.parseInt(stationID);
 			
 			@SuppressWarnings("resource")
-			Scanner scanfile = new Scanner(new File(filename));
+			Scanner scanfile = new Scanner(new File(localPaths.toString()));
+			scanfile.nextLine();
 			
 			while(scanfile.hasNextLine()){
 				String line = scanfile.nextLine().trim();

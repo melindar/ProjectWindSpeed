@@ -1,6 +1,5 @@
-package windspeed;
+package grid;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -8,23 +7,21 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 
-@SuppressWarnings("deprecation")
-public class WindSpeedDriver 
+public class GridDriver 
 {
 	public static void main(String[] args) throws Exception
 	{
-		// args[0] is path to lookup file ("stationdata.prn")
+		// args[0] is the number of splits
 		// args[1] is the path to the input data files
 		// args[2] is the path to the output files
 		
+		String numSplits = args[0];
 		Configuration conf1 = new Configuration();
-		Job job1 = Job.getInstance(conf1);
-		//job1.addCacheFile(new URI(args[0]));
-		Path lookup = new Path("hdfs://boston:30901/lookup");
-		DistributedCache.addCacheFile(lookup.toUri(), job1.getConfiguration());
-		job1.setJarByClass(WindSpeedDriver.class);
-		job1.setMapperClass(WindSpeedMapper.class);
-		//job1.setReducerClass(WindSpeedReducer.class);
+		conf1.set("numSplits",numSplits);
+		Job job1 = Job.getInstance(conf1, numSplits);
+		job1.setJarByClass(GridDriver.class);
+		job1.setMapperClass(GridMapper.class);
+		//job1.setReducerClass(GridReducer.class);
 		job1.setOutputKeyClass(Text.class);
 		job1.setOutputValueClass(Text.class);
 		FileInputFormat.addInputPath(job1, new Path(args[1]));
